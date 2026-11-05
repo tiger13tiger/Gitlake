@@ -4,16 +4,26 @@ on:
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
+    inputs:
+      run_date:
+        description: 'Date to process (YYYY-MM-DD). Leave blank for yesterday.'
+        required: false
 
 permissions:
   id-token: write   # required for OIDC login to Azure
   contents: read
 
+concurrency:
+  group: medallion-etl
+  cancel-in-progress: false
+
 jobs:
   etl:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       ADLS_ACCOUNT_NAME: ${{ vars.ADLS_ACCOUNT_NAME }}
+      RUN_DATE: ${{ inputs.run_date }}
     steps:
       - uses: actions/checkout@v4
 
