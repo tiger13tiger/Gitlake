@@ -27,6 +27,9 @@ jobs:
       RUN_DATE: ${{ inputs.run_date }}
       PENTANA_API_BASE_URL: ${{ vars.PENTANA_API_BASE_URL }}
       PENTANA_API_KEY: ${{ secrets.PENTANA_API_KEY }}
+      SALESFORCE_LOGIN_URL: ${{ vars.SALESFORCE_LOGIN_URL }}
+      SALESFORCE_CLIENT_ID: ${{ secrets.SALESFORCE_CLIENT_ID }}
+      SALESFORCE_CLIENT_SECRET: ${{ secrets.SALESFORCE_CLIENT_SECRET }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +50,12 @@ jobs:
       - name: ingest Pentana DMS
         if: vars.PENTANA_API_BASE_URL != ''
         run: python pipelines/ingest_pentana.py
+
+      # Skipped until SALESFORCE_LOGIN_URL is actually set — same reasoning
+      # as the Pentana step above.
+      - name: ingest Salesforce CRM
+        if: vars.SALESFORCE_LOGIN_URL != ''
+        run: python pipelines/ingest_salesforce.py
 
       - name: bronze -> silver
         run: python pipelines/bronze_to_silver.py

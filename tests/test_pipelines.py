@@ -13,7 +13,8 @@ from deltalake import DeltaTable, write_deltalake
 
 from bronze_to_silver import clean
 from silver_to_gold import aggregate
-from ingest_pentana import normalize
+from ingest_pentana import normalize as normalize_pentana
+from ingest_salesforce import normalize as normalize_salesforce
 from _runlog import log_run
 
 
@@ -45,15 +46,34 @@ def test_aggregate_computes_count_and_revenue_per_date():
     assert day2["revenue"] == 10.0
 
 
-def test_normalize_flattens_nested_records():
+def test_pentana_normalize_flattens_nested_records():
     records = [
         {"id": 1, "make": "Toyota", "details": {"year": 2024}},
         {"id": 2, "make": "Honda", "details": {"year": 2023}},
     ]
-    df = normalize(records)
+    df = normalize_pentana(records)
     assert len(df) == 2
     assert "details.year" in df.columns
     assert df.loc[df["id"] == 1, "details.year"].iloc[0] == 2024
+
+
+def test_salesforce_normalize_strips_attributes_metadata():
+    records = [
+        {
+            "attributes": {"type": "Account", "url": "/services/data/v59.0/sobjects/Account/001"},
+            "Id": "001",
+            "Name": "Acme Corp",
+        },
+        {
+            "attributes": {"type": "Account", "url": "/services/data/v59.0/sobjects/Account/002"},
+            "Id": "002",
+            "Name": "Globex",
+        },
+    ]
+    df = normalize_salesforce(records)
+    assert len(df) == 2
+    assert "attributes" not in df.columns
+    assert sorted(df["Name"].tolist()) == ["Acme Corp", "Globex"]
 
 
 @pytest.fixture

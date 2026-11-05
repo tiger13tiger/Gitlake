@@ -7,7 +7,7 @@ A medallion-architecture lakehouse driven by GitHub Actions: code and orchestrat
 
 ![GitLake pipeline map](docs/architecture.svg)
 
-Each run: the Actions runner checks out this repo, trades a GitHub OIDC token for Azure access (no stored secret), optionally fetches from the Pentana DMS API and lands it to bronze, reads bronze, writes silver, reads silver back, writes gold — then the VM is destroyed. Only this repo and the storage account persist between runs.
+Each run: the Actions runner checks out this repo, trades a GitHub OIDC token for Azure access (no stored secret), optionally fetches from the Pentana DMS API and/or Salesforce CRM and lands them to bronze, reads bronze, writes silver, reads silver back, writes gold — then the VM is destroyed. Only this repo and the storage account persist between runs.
 
 ## Layout
 
@@ -15,6 +15,7 @@ Each run: the Actions runner checks out this repo, trades a GitHub OIDC token fo
 .github/workflows/etl.yml      # schedule + job steps + failure alerting
 .github/workflows/ci.yml       # lint + test on every push to main / pull request
 pipelines/ingest_pentana.py    # land raw data from the Pentana DMS API into bronze
+pipelines/ingest_salesforce.py # land raw CRM data from Salesforce into bronze
 pipelines/bronze_to_silver.py  # clean/dedupe raw bronze into silver
 pipelines/silver_to_gold.py    # aggregate silver into gold
 pipelines/_runlog.py           # shared helper: appends one row per successful stage
@@ -27,7 +28,7 @@ docs/architecture.svg
 
 Data itself is **not** in this repo — it lives in ADLS Gen2, as Delta tables under four containers/paths:
 
-- `bronze/` — raw data, landed as received, append-only (`bronze/sales/...` from wherever that already lands; `bronze/pentana/...` from `ingest_pentana.py`)
+- `bronze/` — raw data, landed as received, append-only (`bronze/sales/...` from wherever that already lands; `bronze/pentana/...` from `ingest_pentana.py`; `bronze/salesforce/...` from `ingest_salesforce.py`)
 - `silver/` — cleaned, deduped, typed
 - `gold/` — aggregated, business-ready tables your dashboards query
 - `meta/run_log` — one row per successful stage run (`stage`, `run_date`, `rows_written`, `started_at`, `finished_at`, `duration_seconds`) — the pipeline's own audit trail, independent of GitHub's log retention
@@ -40,6 +41,17 @@ It's wired into `etl.yml` but **skipped automatically** until you set `PENTANA_A
 1. Set repo variable `PENTANA_API_BASE_URL` and secret `PENTANA_API_KEY`.
 2. Adjust `fetch_pages()`'s auth header, pagination field names, and the `"vehicles"` endpoint name in `ingest_pentana.py` to match Pentana's actual API.
 3. The step then runs automatically on the next scheduled or manual run.
+
+### Salesforce CRM source
+
+`pipelines/ingest_salesforce.py` is on firmer ground than the Pentana one — Salesforce's REST API is public and stable, so the OAuth 2.0 Client Credentials flow, the `/services/data/<version>/query` endpoint, and the `nextRecordsUrl` pagination it uses are real, documented behavior, not guesses. What's still a placeholder is the SOQL query itself (`SELECT Id, Name, SystemModstamp FROM Account WHERE ...` — swap for your real CRM object and fields) and your org's Connected App credentials.
+
+To wire up real access:
+1. In Salesforce Setup → App Manager → New Connected App: enable OAuth, enable **Client Credentials Flow**, and assign a running user (this flow needs no interactive login — the right fit for a scheduled job).
+2. Set repo variable `SALESFORCE_LOGIN_URL` (e.g. your org's My Domain URL) and secrets `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET`.
+3. Replace the SOQL query in `ingest_salesforce.py` with the object/fields you actually need.
+
+Same safety pattern as Pentana: this step is skipped automatically until `SALESFORCE_LOGIN_URL` is set.
 
 ## Setup
 
@@ -87,6 +99,7 @@ Everything else here is meant to be left alone. The only things specific to your
    - `order_id`, `amount`, `order_date` — your actual column names, referenced in `clean()` and in the partition-delete predicate
 3. **Business aggregation**, in `pipelines/silver_to_gold.py` — `aggregate()` is where your real gold-layer logic goes.
 4. **Pentana API specifics**, in `pipelines/ingest_pentana.py`, once you have partner access — see "Pentana DMS source" above.
+5. **Salesforce query/credentials**, in `pipelines/ingest_salesforce.py` — see "Salesforce CRM source" above.
 
 ## Notes
 
