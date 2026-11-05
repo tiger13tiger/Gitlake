@@ -28,7 +28,7 @@ Data itself is **not** in this repo — it lives in ADLS Gen2, as Delta tables u
 
 2. **Azure AD app registration** — create an app registration and add a federated credential that trusts GitHub's OIDC tokens for this repo:
    - Issuer: `https://token.actions.githubusercontent.com`
-   - Subject: `repo:tiger13tiger/gitlake:ref:refs/heads/main` (adjust branch as needed; use `:environment:<name>` instead if you deploy via a GitHub Environment)
+   - Subject: `repo:tiger13tiger/Gitlake:ref:refs/heads/main` (match the repo's exact casing; use `:environment:<name>` instead if you deploy via a GitHub Environment)
 
 3. **Role assignment** — grant that app's service principal the **Storage Blob Data Contributor** role, scoped to the storage account.
 
@@ -36,10 +36,23 @@ Data itself is **not** in this repo — it lives in ADLS Gen2, as Delta tables u
    - Secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
    - Variable: `ADLS_ACCOUNT_NAME` (the storage account name — not sensitive, so it's a variable, not a secret)
 
-5. Push to `main` or run the `medallion-etl` workflow manually (`workflow_dispatch`) to trigger the first run.
+5. Merge this branch to `main`. **The `schedule` trigger only ever fires from the default branch** — the workflow can run from any branch via manual `workflow_dispatch`, but the 03:00 UTC cron does nothing until this is on `main`.
+
+To backfill or re-run a specific day, use `workflow_dispatch` and fill in `run_date` (`YYYY-MM-DD`); leave it blank to process yesterday. Re-running the same date is safe — `bronze_to_silver.py` replaces that date's rows in silver instead of duplicating them.
+
+## What you need to change
+
+Everything else here is meant to be left alone. The only things specific to your data are:
+
+1. **ADLS linking** — the four repo secrets/variable in step 4 above. Nothing else in the workflow or scripts needs touching to point at your storage account.
+2. **Source path and schema**, in `pipelines/bronze_to_silver.py`:
+   - `abfss("bronze", f"sales/{RUN_DATE}")` — your bronze container/prefix layout
+   - `order_id`, `amount`, `order_date` — your actual column names, referenced in the dedupe/clean rules and in the partition-delete predicate
+3. **Business aggregation**, in `pipelines/silver_to_gold.py` — the `groupby`/`agg` call is where your real gold-layer logic goes.
 
 ## Notes
 
 - `pipelines/*.py` use `pandas` + `deltalake` (delta-rs) rather than PySpark — lighter to install on a GitHub-hosted runner, no JVM startup cost. Swap in PySpark if a stage needs real distributed compute.
+- `requirements.txt` is pinned to exact versions that were installed and run against together (clean/dedupe, the idempotent re-run, and the gold aggregation all pass locally against them) — bump deliberately, not by habit.
 - The sample transforms (`sales` bronze → silver → gold) are placeholders — replace the read path, cleaning rules, and aggregation with your actual source and business logic.
 - Runners are stateless between runs: don't rely on anything written to local disk surviving past the job that wrote it.
