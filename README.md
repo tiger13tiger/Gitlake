@@ -1,5 +1,7 @@
 # GitLake
 
+[![medallion-etl](https://github.com/tiger13tiger/Gitlake/actions/workflows/etl.yml/badge.svg?branch=main)](https://github.com/tiger13tiger/Gitlake/actions/workflows/etl.yml)
+
 A medallion-architecture lakehouse driven by GitHub Actions: code and orchestration live in this repo, data lives in Azure Data Lake Storage Gen2 as Delta tables, moving bronze → silver → gold on a schedule.
 
 ![GitLake pipeline map](docs/architecture.svg)
@@ -9,22 +11,24 @@ Each run: the Actions runner checks out this repo, trades a GitHub OIDC token fo
 ## Layout
 
 ```
-.github/workflows/etl.yml      # schedule + job steps
+.github/workflows/etl.yml      # schedule + job steps + failure alerting
 pipelines/bronze_to_silver.py  # clean/dedupe raw bronze into silver
 pipelines/silver_to_gold.py    # aggregate silver into gold
+pipelines/_runlog.py           # shared helper: appends one row per successful stage
 requirements.txt
 docs/architecture.svg
 ```
 
-Data itself is **not** in this repo — it lives in ADLS Gen2, as Delta tables under three containers/paths:
+Data itself is **not** in this repo — it lives in ADLS Gen2, as Delta tables under four containers/paths:
 
 - `bronze/` — raw data, landed as received, append-only
 - `silver/` — cleaned, deduped, typed
 - `gold/` — aggregated, business-ready tables your dashboards query
+- `meta/run_log` — one row per successful stage run (`stage`, `run_date`, `rows_written`, `started_at`, `finished_at`, `duration_seconds`) — the pipeline's own audit trail, independent of GitHub's log retention
 
 ## Setup
 
-1. **Storage account** — create an ADLS Gen2 account (hierarchical namespace enabled) with containers `bronze`, `silver`, `gold`.
+1. **Storage account** — create an ADLS Gen2 account (hierarchical namespace enabled) with containers `bronze`, `silver`, `gold`, `meta`.
 
 2. **Azure AD app registration** — create an app registration and add a federated credential that trusts GitHub's OIDC tokens for this repo:
    - Issuer: `https://token.actions.githubusercontent.com`
@@ -39,6 +43,12 @@ Data itself is **not** in this repo — it lives in ADLS Gen2, as Delta tables u
 5. Merge this branch to `main`. **The `schedule` trigger only ever fires from the default branch** — the workflow can run from any branch via manual `workflow_dispatch`, but the 03:00 UTC cron does nothing until this is on `main`.
 
 To backfill or re-run a specific day, use `workflow_dispatch` and fill in `run_date` (`YYYY-MM-DD`); leave it blank to process yesterday. Re-running the same date is safe — `bronze_to_silver.py` replaces that date's rows in silver instead of duplicating them.
+
+## Monitoring
+
+- **Status at a glance** — the badge at the top of this README reflects the latest run on `main`.
+- **On failure** — the workflow files (or comments on) a single open GitHub issue labeled `pipeline-failure`, linking the failed run. Repeated failures comment on the same issue instead of spawning new ones; close it once you've fixed the cause, and the next failure opens a fresh one.
+- **Data health, not just job status** — `meta/run_log` records rows written and duration for every successful stage, and every Delta table also keeps its own write history for free via `DeltaTable(path).history()`. A dashboard, if you build one later, should read from here rather than re-polling GitHub's API.
 
 ## What you need to change
 

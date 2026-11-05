@@ -1,10 +1,12 @@
 """Clean and dedupe a day's raw bronze data into the silver Delta table."""
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 from azure.identity import DefaultAzureCredential
 from deltalake import DeltaTable, write_deltalake
+
+from _runlog import log_run
 
 ACCOUNT = os.environ["ADLS_ACCOUNT_NAME"]
 RUN_DATE = os.environ.get("RUN_DATE") or (date.today() - timedelta(days=1)).isoformat()
@@ -20,6 +22,7 @@ def abfss(container: str, path: str) -> str:
 
 
 def main() -> None:
+    started_at = datetime.now(timezone.utc)
     credential = DefaultAzureCredential()
 
     bronze_path = abfss("bronze", f"sales/{RUN_DATE}")
@@ -45,6 +48,7 @@ def main() -> None:
 
     write_deltalake(silver_path, clean, mode="append", storage_options=WRITE_OPTIONS)
     print(f"wrote {len(clean)} rows to {silver_path}")
+    log_run("bronze_to_silver", RUN_DATE, len(clean), started_at)
 
 
 if __name__ == "__main__":
