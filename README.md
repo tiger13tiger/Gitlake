@@ -7,13 +7,14 @@ A medallion-architecture lakehouse driven by GitHub Actions: code and orchestrat
 
 ![GitLake pipeline map](docs/architecture.svg)
 
-Each run: the Actions runner checks out this repo, trades a GitHub OIDC token for Azure access (no stored secret), reads bronze, writes silver, reads silver back, writes gold — then the VM is destroyed. Only this repo and the storage account persist between runs.
+Each run: the Actions runner checks out this repo, trades a GitHub OIDC token for Azure access (no stored secret), optionally fetches from the Pentana DMS API and lands it to bronze, reads bronze, writes silver, reads silver back, writes gold — then the VM is destroyed. Only this repo and the storage account persist between runs.
 
 ## Layout
 
 ```
 .github/workflows/etl.yml      # schedule + job steps + failure alerting
 .github/workflows/ci.yml       # lint + test on every push to main / pull request
+pipelines/ingest_pentana.py    # land raw data from the Pentana DMS API into bronze
 pipelines/bronze_to_silver.py  # clean/dedupe raw bronze into silver
 pipelines/silver_to_gold.py    # aggregate silver into gold
 pipelines/_runlog.py           # shared helper: appends one row per successful stage
@@ -26,10 +27,19 @@ docs/architecture.svg
 
 Data itself is **not** in this repo — it lives in ADLS Gen2, as Delta tables under four containers/paths:
 
-- `bronze/` — raw data, landed as received, append-only
+- `bronze/` — raw data, landed as received, append-only (`bronze/sales/...` from wherever that already lands; `bronze/pentana/...` from `ingest_pentana.py`)
 - `silver/` — cleaned, deduped, typed
 - `gold/` — aggregated, business-ready tables your dashboards query
 - `meta/run_log` — one row per successful stage run (`stage`, `run_date`, `rows_written`, `started_at`, `finished_at`, `duration_seconds`) — the pipeline's own audit trail, independent of GitHub's log retention
+
+### Pentana DMS source
+
+`pipelines/ingest_pentana.py` is a **scaffold, not a tested integration** — Pentana doesn't publish a public developer API; access is partner-gated, so there's no base URL, auth scheme, or endpoint schema to build against yet. The script assumes a generic paginated-JSON-over-bearer-token shape (the common REST convention), which will very likely need adjusting once you have real docs from Pentana.
+
+It's wired into `etl.yml` but **skipped automatically** until you set `PENTANA_API_BASE_URL` — so merging this doesn't touch the pipeline you already have working. Once you have real partner credentials:
+1. Set repo variable `PENTANA_API_BASE_URL` and secret `PENTANA_API_KEY`.
+2. Adjust `fetch_pages()`'s auth header, pagination field names, and the `"vehicles"` endpoint name in `ingest_pentana.py` to match Pentana's actual API.
+3. The step then runs automatically on the next scheduled or manual run.
 
 ## Setup
 
@@ -76,6 +86,7 @@ Everything else here is meant to be left alone. The only things specific to your
    - `abfss(account, "bronze", f"sales/{run_date}")` — your bronze container/prefix layout
    - `order_id`, `amount`, `order_date` — your actual column names, referenced in `clean()` and in the partition-delete predicate
 3. **Business aggregation**, in `pipelines/silver_to_gold.py` — `aggregate()` is where your real gold-layer logic goes.
+4. **Pentana API specifics**, in `pipelines/ingest_pentana.py`, once you have partner access — see "Pentana DMS source" above.
 
 ## Notes
 

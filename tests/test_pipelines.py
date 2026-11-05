@@ -13,6 +13,7 @@ from deltalake import DeltaTable, write_deltalake
 
 from bronze_to_silver import clean
 from silver_to_gold import aggregate
+from ingest_pentana import normalize
 from _runlog import log_run
 
 
@@ -42,6 +43,17 @@ def test_aggregate_computes_count_and_revenue_per_date():
     day2 = gold[gold["order_date"] == "2026-11-02"].iloc[0]
     assert day2["order_count"] == 2
     assert day2["revenue"] == 10.0
+
+
+def test_normalize_flattens_nested_records():
+    records = [
+        {"id": 1, "make": "Toyota", "details": {"year": 2024}},
+        {"id": 2, "make": "Honda", "details": {"year": 2023}},
+    ]
+    df = normalize(records)
+    assert len(df) == 2
+    assert "details.year" in df.columns
+    assert df.loc[df["id"] == 1, "details.year"].iloc[0] == 2024
 
 
 @pytest.fixture
