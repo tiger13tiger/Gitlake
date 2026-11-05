@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 970 600" font-family="'IBM Plex Mono', ui-monospace, monospace" role="img" aria-label="GitHub Actions spins up a disposable runner that checks out pipeline code from the repo, trades a GitHub OIDC token for Azure access, and moves data bronze to silver to gold in ADLS, then the runner is destroyed — only the repo and the storage account persist across runs.">
+  <rect x="0" y="0" width="970" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1c1f23"/>
+    </marker>
+    <marker id="arrowAccent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b5651d"/>
+    </marker>
+  </defs>
+
+  <text x="670" y="26" font-size="13" font-weight="700" fill="#1c1f23">ADLS Gen2 storage account — persists</text>
+
+  <!-- Repo -->
+  <rect x="190" y="40" width="200" height="110" rx="4" fill="#ffffff" stroke="#1c1f23" stroke-width="1.5"/>
+  <text x="202" y="64" font-size="13" font-weight="700" fill="#1c1f23">GitHub repo</text>
+  <text x="202" y="80" font-size="10.5" fill="#5b6573">persists — source of truth for code</text>
+  <text x="202" y="96" font-size="10.5" fill="#5b6573">.github/workflows/etl.yml</text>
+  <text x="202" y="112" font-size="10.5" fill="#5b6573">pipelines/bronze_to_silver.py</text>
+  <text x="202" y="128" font-size="10.5" fill="#5b6573">pipelines/silver_to_gold.py</text>
+
+  <!-- Azure AD -->
+  <rect x="430" y="40" width="180" height="90" rx="4" fill="#ffffff" stroke="#1c1f23" stroke-width="1.5"/>
+  <text x="442" y="64" font-size="13" font-weight="700" fill="#1c1f23">Azure AD app</text>
+  <text x="442" y="82" font-size="10.5" fill="#5b6573">federated credential trust</text>
+  <text x="442" y="100" font-size="10.5" fill="#5b6573">Blob Data Contributor role</text>
+
+  <!-- Trigger -->
+  <rect x="20" y="300" width="130" height="70" rx="4" fill="#ffffff" stroke="#1c1f23" stroke-width="1.5"/>
+  <text x="32" y="324" font-size="13" font-weight="700" fill="#1c1f23">Trigger</text>
+  <text x="32" y="340" font-size="10.5" fill="#5b6573">cron 03:00 UTC</text>
+  <text x="32" y="354" font-size="10.5" fill="#5b6573">or push / dispatch</text>
+
+  <!-- Runner (ephemeral) -->
+  <rect x="190" y="250" width="200" height="170" rx="4" fill="#ffffff" stroke="#b5651d" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="202" y="274" font-size="13" font-weight="700" fill="#1c1f23">Actions runner</text>
+  <text x="202" y="290" font-size="10.5" fill="#5b6573">fresh VM, every run</text>
+  <text x="202" y="306" font-size="10.5" fill="#5b6573">no disk survives the job</text>
+
+  <!-- Destroyed (ephemeral) -->
+  <rect x="190" y="440" width="200" height="80" rx="4" fill="#ffffff" stroke="#b5651d" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="202" y="466" font-size="13" font-weight="700" fill="#1c1f23">Runner destroyed</text>
+  <text x="202" y="484" font-size="10.5" fill="#5b6573">disk wiped — nothing kept</text>
+
+  <!-- bronze -->
+  <rect x="670" y="50" width="260" height="150" rx="4" fill="#ffffff" stroke="#1c1f23" stroke-width="1.5"/>
+  <text x="682" y="76" font-size="13" font-weight="700" fill="#1c1f23">bronze/</text>
+  <text x="682" y="96" font-size="10.5" fill="#5b6573">raw, landed as received</text>
+  <text x="682" y="116" font-size="10.5" fill="#5b6573">append-only, partitioned by date</text>
+
+  <!-- silver -->
+  <rect x="670" y="230" width="260" height="150" rx="4" fill="#ffffff" stroke="#1c1f23" stroke-width="1.5"/>
+  <text x="682" y="256" font-size="13" font-weight="700" fill="#1c1f23">silver/</text>
+  <text x="682" y="276" font-size="10.5" fill="#5b6573">cleaned, deduped, typed</text>
+  <text x="682" y="296" font-size="10.5" fill="#5b6573">Delta table — ACID, schema-enforced</text>
+
+  <!-- gold -->
+  <rect x="670" y="410" width="260" height="150" rx="4" fill="#ffffff" stroke="#1c1f23" stroke-width="1.5"/>
+  <text x="682" y="436" font-size="13" font-weight="700" fill="#1c1f23">gold/</text>
+  <text x="682" y="456" font-size="10.5" fill="#5b6573">aggregated, business-ready</text>
+  <text x="682" y="476" font-size="10.5" fill="#5b6573">what dashboards query</text>
+
+  <!-- arrows -->
+  <line x1="150" y1="335" x2="188" y2="335" stroke="#b5651d" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+  <text x="169" y="325" font-size="11" text-anchor="middle" fill="#b5651d">1 fires</text>
+
+  <line x1="290" y1="150" x2="290" y2="248" stroke="#1c1f23" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="300" y="204" font-size="11" fill="#1c1f23">2 checkout</text>
+
+  <line x1="330" y1="250" x2="432" y2="132" stroke="#b5651d" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+  <text x="380" y="180" font-size="11" text-anchor="middle" fill="#b5651d">3 OIDC trust</text>
+
+  <line x1="390" y1="290" x2="668" y2="125" stroke="#1c1f23" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="530" y="198" font-size="11" text-anchor="middle" fill="#1c1f23">4 read bronze</text>
+
+  <line x1="390" y1="330" x2="668" y2="280" stroke="#1c1f23" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="530" y="295" font-size="11" text-anchor="middle" fill="#1c1f23">5 write silver</text>
+
+  <line x1="668" y1="330" x2="392" y2="365" stroke="#1c1f23" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="530" y="362" font-size="11" text-anchor="middle" fill="#1c1f23">6 read silver</text>
+
+  <line x1="390" y1="400" x2="668" y2="485" stroke="#1c1f23" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="530" y="433" font-size="11" text-anchor="middle" fill="#1c1f23">7 write gold</text>
+
+  <line x1="290" y1="420" x2="290" y2="438" stroke="#b5651d" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+  <text x="305" y="434" font-size="11" fill="#b5651d">8 teardown</text>
+</svg>
