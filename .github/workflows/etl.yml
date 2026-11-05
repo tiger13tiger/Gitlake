@@ -25,6 +25,8 @@ jobs:
     env:
       ADLS_ACCOUNT_NAME: ${{ vars.ADLS_ACCOUNT_NAME }}
       RUN_DATE: ${{ inputs.run_date }}
+      PENTANA_API_BASE_URL: ${{ vars.PENTANA_API_BASE_URL }}
+      PENTANA_API_KEY: ${{ secrets.PENTANA_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,6 +41,12 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Skipped until PENTANA_API_BASE_URL is actually set — merging this
+      # must not break the existing pipeline before real partner access exists.
+      - name: ingest Pentana DMS
+        if: vars.PENTANA_API_BASE_URL != ''
+        run: python pipelines/ingest_pentana.py
 
       - name: bronze -> silver
         run: python pipelines/bronze_to_silver.py
