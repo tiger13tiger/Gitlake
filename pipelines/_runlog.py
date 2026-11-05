@@ -11,15 +11,20 @@ from datetime import datetime, timezone
 import pandas as pd
 from deltalake import write_deltalake
 
-ACCOUNT = os.environ["ADLS_ACCOUNT_NAME"]
 
-STORAGE_OPTIONS = {
-    "azure_storage_account_name": ACCOUNT,
-    "azure_storage_use_azure_cli": "true",
-}
+def log_run(
+    stage: str,
+    run_date: str,
+    rows_written: int,
+    started_at: datetime,
+    *,
+    path: str | None = None,
+) -> None:
+    """Append one row to meta/run_log.
 
-
-def log_run(stage: str, run_date: str, rows_written: int, started_at: datetime) -> None:
+    `path` is only ever overridden by tests, to point at a local Delta
+    table instead of ADLS — production call sites always omit it.
+    """
     finished_at = datetime.now(timezone.utc)
     row = pd.DataFrame([{
         "stage": stage,
@@ -29,5 +34,19 @@ def log_run(stage: str, run_date: str, rows_written: int, started_at: datetime) 
         "finished_at": finished_at,
         "duration_seconds": (finished_at - started_at).total_seconds(),
     }])
-    path = f"abfss://meta@{ACCOUNT}.dfs.core.windows.net/run_log"
-    write_deltalake(path, row, mode="append", storage_options=STORAGE_OPTIONS)
+
+    if path is not None:
+        write_deltalake(path, row, mode="append")
+        return
+
+    account = os.environ["ADLS_ACCOUNT_NAME"]
+    target = f"abfss://meta@{account}.dfs.core.windows.net/run_log"
+    write_deltalake(
+        target,
+        row,
+        mode="append",
+        storage_options={
+            "azure_storage_account_name": account,
+            "azure_storage_use_azure_cli": "true",
+        },
+    )

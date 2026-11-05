@@ -1,6 +1,7 @@
 # GitLake
 
 [![medallion-etl](https://github.com/tiger13tiger/Gitlake/actions/workflows/etl.yml/badge.svg?branch=main)](https://github.com/tiger13tiger/Gitlake/actions/workflows/etl.yml)
+[![ci](https://github.com/tiger13tiger/Gitlake/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tiger13tiger/Gitlake/actions/workflows/ci.yml)
 
 A medallion-architecture lakehouse driven by GitHub Actions: code and orchestration live in this repo, data lives in Azure Data Lake Storage Gen2 as Delta tables, moving bronze → silver → gold on a schedule.
 
@@ -12,10 +13,14 @@ Each run: the Actions runner checks out this repo, trades a GitHub OIDC token fo
 
 ```
 .github/workflows/etl.yml      # schedule + job steps + failure alerting
+.github/workflows/ci.yml       # lint + test on every push to main / pull request
 pipelines/bronze_to_silver.py  # clean/dedupe raw bronze into silver
 pipelines/silver_to_gold.py    # aggregate silver into gold
 pipelines/_runlog.py           # shared helper: appends one row per successful stage
+tests/test_pipelines.py        # tests for the above — no Azure required
+conftest.py                    # makes pipelines/ importable the same way the workflow runs it
 requirements.txt
+requirements-dev.txt           # requirements.txt + pytest + ruff, for CI only
 docs/architecture.svg
 ```
 
@@ -50,15 +55,27 @@ To backfill or re-run a specific day, use `workflow_dispatch` and fill in `run_d
 - **On failure** — the workflow files (or comments on) a single open GitHub issue labeled `pipeline-failure`, linking the failed run. Repeated failures comment on the same issue instead of spawning new ones; close it once you've fixed the cause, and the next failure opens a fresh one.
 - **Data health, not just job status** — `meta/run_log` records rows written and duration for every successful stage, and every Delta table also keeps its own write history for free via `DeltaTable(path).history()`. A dashboard, if you build one later, should read from here rather than re-polling GitHub's API.
 
+## Testing
+
+`pipelines/*.py` keep their Azure-reading `main()` separate from the pure transform logic (`clean()`, `aggregate()`), so the logic is testable with no cloud dependency at all — `tests/test_pipelines.py` covers the clean/dedupe rules, the gold aggregation, the idempotent re-run, and the run_log write, all against local data and local Delta tables. `ci.yml` runs `ruff` and this test suite on every push to `main` and every pull request.
+
+When you swap in your real source/schema/aggregation (next section), update these tests alongside — they're what catches a bad change before the 3am run does.
+
+```bash
+pip install -r requirements-dev.txt
+ruff check pipelines tests
+pytest tests -v
+```
+
 ## What you need to change
 
 Everything else here is meant to be left alone. The only things specific to your data are:
 
 1. **ADLS linking** — the four repo secrets/variable in step 4 above. Nothing else in the workflow or scripts needs touching to point at your storage account.
 2. **Source path and schema**, in `pipelines/bronze_to_silver.py`:
-   - `abfss("bronze", f"sales/{RUN_DATE}")` — your bronze container/prefix layout
-   - `order_id`, `amount`, `order_date` — your actual column names, referenced in the dedupe/clean rules and in the partition-delete predicate
-3. **Business aggregation**, in `pipelines/silver_to_gold.py` — the `groupby`/`agg` call is where your real gold-layer logic goes.
+   - `abfss(account, "bronze", f"sales/{run_date}")` — your bronze container/prefix layout
+   - `order_id`, `amount`, `order_date` — your actual column names, referenced in `clean()` and in the partition-delete predicate
+3. **Business aggregation**, in `pipelines/silver_to_gold.py` — `aggregate()` is where your real gold-layer logic goes.
 
 ## Notes
 
